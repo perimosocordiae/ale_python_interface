@@ -14,23 +14,21 @@ if(len(sys.argv) < 2):
     print("Usage ./ale_python_test1.py <ROM_FILE_NAME>")
     sys.exit()
 
-ale = ALEInterface()
+ale = ALEInterface(sys.argv[1])
 
-max_frames_per_episode = ale.getInt("max_num_frames_per_episode");
-ale.set("random_seed",123)
+max_frames_per_episode = ale["max_num_frames_per_episode"]
+ale["random_seed"] = 123
 
-random_seed = ale.getInt("random_seed")
+random_seed = ale["random_seed"]
 print("random_seed: " + str(random_seed))
 
-ale.loadROM(sys.argv[1])
-legal_actions = ale.getLegalActionSet()
+legal_actions = ale.legal_actions
 
 for episode in range(10):
-    total_reward = 0.0 
-    while not ale.game_over():
-        a = legal_actions[np.random.randint(legal_actions.size)]
-        reward = ale.act(a);
+    total_reward = 0.0
+    while not ale.is_game_over:
+        a = np.random.choice(legal_actions)
+        reward = ale.act(a)
         total_reward += reward
     print("Episode " + str(episode) + " ended with score: " + str(total_reward))
     ale.reset_game()
-

@@ -8,113 +8,135 @@ import numpy as np
 from numpy.ctypeslib import as_ctypes
 import os
 
-ale_lib = cdll.LoadLibrary(os.path.join(
-os.path.dirname(__file__),'ale_c_wrapper.so'))
+__all__ = ['ALEInterface']
+
+ale_lib = cdll.LoadLibrary(os.path.join(os.path.dirname(__file__),
+                                        'ale_c_wrapper.so'))
+
+# Properties taken from Arcade-Learning-Environment/src/common/Defaults.cpp
+PROPS = {
+    'random_seed': str,
+    'game_controller': str,
+    'player_agent': str,
+    'max_num_episodes': int,
+    'max_num_frames': int,
+    'max_num_frames_per_episode': int,
+    'system_reset_steps': int,
+    'record_trajectory': bool,
+    'restricted_action_set': bool,
+    'use_starting_actions': bool,
+    'use_environment_distribution': bool,
+    'random_seed': str,
+    'disable_color_averaging': bool,
+    'send_rgb': bool,
+    'frame_skip': int,
+    'display_screen': bool,
+}
+GETTERS = {
+    str: ale_lib.getString,
+    int: ale_lib.getInt,
+    bool: ale_lib.getBool,
+    float: ale_lib.getFloat,
+}
+SETTERS = {
+    str: ale_lib.setString,
+    int: ale_lib.setInt,
+    bool: ale_lib.setBool,
+    float: ale_lib.setFloat,
+}
+
 
 class ALEInterface(object):
-    def __init__(self):
-        self.obj = ale_lib.ALE_new()
-
-    def getString(self,key):
-        return ale_lib.getString(self.obj,key)
-    def getInt(self,key):
-        return ale_lib.getInt(self.obj,key)
-    def getBool(self,key):
-        return ale_lib.getBool(self.obj,key)
-    def getFloat(self,key):
-        return ale_lib.getFloat(self.obj,key)
-
-    def set(self,key,value):
-        if(type(value) == str):
-            ale_lib.setString(self.obj,key,value)
-        elif(type(value) == int):
-            ale_lib.setInt(self.obj,key,value)
-        elif(type(value) == bool):
-            ale_lib.setBool(self.obj,key,value)
-        elif(type(value) == float):
-            ale_lib.setFloar(self.obj,key,value)
-
-    def loadROM(self,rom_file):
-        ale_lib.loadROM(self.obj,rom_file)
-
-    def act(self,action):
-        return ale_lib.act(self.obj,int(action))
-
-    def game_over(self):
-        return ale_lib.game_over(self.obj)
-
-    def reset_game(self):
-        ale_lib.reset_game(self.obj)
-
-    def getLegalActionSet(self):
-        act_size = ale_lib.getLegalActionSize(self.obj)
-        act = np.zeros((act_size),dtype=np.int32)
-        ale_lib.getLegalActionSet(self.obj,as_ctypes(act))
-        return act
-
-    def getMinimalActionSet(self):
-        act_size = ale_lib.getMinimalActionSize(self.obj)
-        act = np.zeros((act_size),dtype=np.int32)
-        ale_lib.getMinimalActionSet(self.obj,as_ctypes(act))
-        return act
-
-    def getFrameNumber(self):
-        return ale_lib.getFrameNumber(self.obj)
-
-    def getEpisodeFrameNumber(self):
-        return ale_lib.getEpisodeFrameNumber(self.obj)
-
-    def getScreenDims(self):
-        """returns a tuple that contains (screen_width,screen_height)
-        """
-        width = ale_lib.getScreenWidth(self.obj)
-        height = ale_lib.getScreenHeight(self.obj)
-        return (width,height)
-
-
-    def getScreen(self,screen_data=None):
-        """This function fills screen_data with the RAW Pixel data
-        screen_data MUST be a numpy array of uint8/int8. This could be initialized like so:
-        screen_data = np.array(w*h,dtype=np.uint8)
-        Notice, it must be width*height in size also
-        If it is None, then this function will initialize it
-        Note: This is the raw pixel values from the atari, before any RGB palette transformation takes place
-        """
-        if(screen_data is None):
-            width = ale_lib.getScreenWidth(self.obj)
-            height = ale_lib.getScreenWidth(self.obj)
-            screen_data = np.zeros(width*height,dtype=np.uint8)
-        ale_lib.getScreen(self.obj,as_ctypes(screen_data))
-        return screen_data
-
-    def getScreenRGB(self,screen_data=None):
-        """This function fills screen_data with the data
-        screen_data MUST be a numpy array of uint32/int32. This can be initialized like so:
-        screen_data = np.array(w*h,dtype=np.uint32)
-        Notice, it must be width*height in size also
-        If it is None, then this function will initialize it
-        """
-        if(screen_data is None):
-            width = ale_lib.getScreenWidth(self.obj)
-            height = ale_lib.getScreenWidth(self.obj)
-            screen_data = np.zeros(width*height,dtype=np.uint32)
-        ale_lib.getScreenRGB(self.obj,as_ctypes(screen_data))
-        return screen_data
-
-    def getRAMSize(self):
-        return ale_lib.getRAMSize(self.obj)
-
-    def getRAM(self,ram=None):
-        """This function grabs the atari RAM.
-        ram MUST be a numpy array of uint8/int8. This can be initialized like so:
-        ram = np.array(ram_size,dtype=uint8)
-        Notice: It must be ram_size where ram_size can be retrieved via the getRAMSize function.
-        If it is None, then this function will initialize it.
-        """
-        if(ram is None):
-            ram_size = ale_lib.getRAMSize(self.obj)
-            ram = np.zeros(ram_size,dtype=np.uint8)
-        ale_lib.getRAM(self.obj,as_ctypes(ram))
+    def __init__(self, rom_file):
+        self._obj = ale_lib.ALE_new()
+        ale_lib.loadROM(self._obj, rom_file)
 
     def __del__(self):
-        ale_lib.ALE_del(self.obj)
+        ale_lib.ALE_del(self._obj)
+
+    def __getitem__(self, key):
+        if key not in PROPS:
+            raise ValueError('Invalid key: %s' % key)
+        getter = GETTERS[PROPS[key]]
+        return getter(self._obj, key)
+
+    def __setitem__(self, key, value):
+        if key not in PROPS:
+            raise ValueError('Invalid key: %s' % key)
+        setter = SETTERS[PROPS[key]]
+        setter(self._obj, key, value)
+
+    @property
+    def legal_actions(self):
+        act_size = ale_lib.getLegalActionSize(self._obj)
+        act = np.zeros(act_size, dtype=np.int32)
+        ale_lib.getLegalActionSet(self._obj, as_ctypes(act))
+        return act
+
+    @property
+    def minimal_actions(self):
+        act_size = ale_lib.getMinimalActionSize(self._obj)
+        act = np.zeros(act_size, dtype=np.int32)
+        ale_lib.getMinimalActionSet(self._obj, as_ctypes(act))
+        return act
+
+    @property
+    def frame_number(self):
+        return ale_lib.getFrameNumber(self._obj)
+
+    @property
+    def episode_frame_number(self):
+        return ale_lib.getEpisodeFrameNumber(self._obj)
+
+    @property
+    def screen_dims(self):
+        """returns a tuple that contains (screen_width,screen_height)
+        """
+        width = ale_lib.getScreenWidth(self._obj)
+        height = ale_lib.getScreenHeight(self._obj)
+        return width, height
+
+    @property
+    def ram_size(self):
+        return ale_lib.getRAMSize(self._obj)
+
+    @property
+    def is_game_over(self):
+        return ale_lib.game_over(self._obj)
+
+    def act(self,action):
+        return ale_lib.act(self._obj, int(action))
+
+    def reset_game(self):
+        ale_lib.reset_game(self._obj)
+
+    def fill_screen(self, screen_data=None):
+        """This function fills screen_data with the RAW Pixel data
+        screen_data MUST be a numpy array of uint8.
+        Note: This is the raw pixel values from the atari,
+        before any RGB palette transformation takes place.
+        """
+        if screen_data is None:
+            size = np.prod(self.screen_dims)
+            screen_data = np.zeros(size, dtype=np.uint8)
+        ale_lib.getScreen(self._obj, as_ctypes(screen_data))
+        return screen_data
+
+    def fill_screen_rgb(self, screen_data=None):
+        """This function fills screen_data with the data
+        screen_data MUST be a numpy array of uint32.
+        """
+        if screen_data is None:
+            size = np.prod(self.screen_dims)
+            screen_data = np.zeros(size, dtype=np.uint32)
+        ale_lib.getScreenRGB(self._obj, as_ctypes(screen_data))
+        return screen_data
+
+    def fill_ram(self, ram=None):
+        """This function grabs the atari RAM.
+        ram MUST be a numpy array of uint8.
+        """
+        if ram is None:
+            ram = np.zeros(self.ram_size, dtype=np.uint8)
+        ale_lib.getRAM(self._obj,as_ctypes(ram))
+        return ram
